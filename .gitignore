@@ -1,0 +1,6 @@
+*.out
+states/
+x/
+detailed.log
+log0.smt
+profile-rules.txt

@@ -1,0 +1,1 @@
+(Logical) fork of https://github.com/tlaplus/Examples/tree/master/specifications/ewd840
