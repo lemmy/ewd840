@@ -60,4 +60,7 @@ Prop ==
 
 THEOREM Spec => Prop
 
+AlwaysTerminates ==    
+    <>[](terminationDetected)
+
 =============================================================================
