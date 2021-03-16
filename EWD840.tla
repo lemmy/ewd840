@@ -47,7 +47,6 @@ Environment ==
 Next == System \/ Environment
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(System)
-                              /\ WF_vars(Environment)
 
 -----------------------------------------------------------------------------
 
@@ -72,7 +71,14 @@ Prop ==
 
 THEOREM Spec => Prop
 
+-----------------------------------------------------------------------------
+
+SpecWFEnv ==
+    Spec /\ WF_vars(Environment)
+
 AlwaysTerminates ==    
     <>[](terminationDetected)
+
+THEOREM SpecWFEnv => AlwaysTerminates
 
 =============================================================================
