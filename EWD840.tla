@@ -32,4 +32,20 @@ Next == System
 
 Spec == Init /\ [][Next]_vars
 
+-----------------------------------------------------------------------------
+
+terminationDetected ==
+    /\ ~active[0]
+    /\ tpos = 0
+
+terminated ==
+    \A n \in Node: ~active[n]
+
+\* If termination has been detected, all nodes are
+\* indeed inactive.
+Inv == 
+    terminationDetected => terminated
+
+THEOREM Spec => []Inv
+
 =============================================================================
