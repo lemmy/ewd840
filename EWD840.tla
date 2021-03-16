@@ -35,7 +35,7 @@ System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
 
 Next == System
 
-Spec == Init /\ [][Next]_vars
+Spec == Init /\ [][Next]_vars /\ WF_vars(System)
 
 -----------------------------------------------------------------------------
 
