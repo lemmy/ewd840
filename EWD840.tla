@@ -52,7 +52,14 @@ SendMsg(i) ==
     /\ active[i]
     /\ \E j \in Node:
             /\ active' = [active EXCEPT ![j] = TRUE]
-            /\ color' = [color EXCEPT ![i] = FALSE]
+            \* If the message activates a lower-numbered node, there is
+            \* no need to taint the token to mark the round inconclusive.
+            \* This is because the lower numbered node has not yet received
+            \* the token for this round and, thus, can taint it itself.
+            \* Thus, this is an optimization to avoid another round in the
+            \* case that the recipient node deactivates between receiving
+            \* the message and the token.
+            /\ color' = [color EXCEPT ![i] = IF j>i THEN FALSE ELSE @]
     /\ UNCHANGED <<tpos, tcolor>>
 
 Environment ==
