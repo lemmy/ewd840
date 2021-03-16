@@ -2,6 +2,7 @@
 EXTENDS Naturals
 
 CONSTANT N
+ASSUME NAssumption == N \in (Nat \ {0})
 
 Node == 0 .. N-1
 
@@ -100,6 +101,18 @@ Inv ==
     terminationDetected => terminated
 
 THEOREM Spec => []Inv
+
+-----------------------------------------------------------------------------
+
+\* Dijkstra's (inductive) invariant.
+IInv ==
+    \/ P0:: \A i \in Node : tpos < i => ~ active[i]
+    \/ P1:: \E j \in 0 .. tpos : color[j] = black
+    \/ P2:: tcolor = black
+
+THEOREM Spec => []IInv
+
+-----------------------------------------------------------------------------
 
 \* Termination of nodes leads to termination being detected.
 Prop ==
