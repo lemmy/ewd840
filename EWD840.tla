@@ -54,4 +54,10 @@ Inv ==
 
 THEOREM Spec => []Inv
 
+\* Termination of nodes leads to termination being detected.
+Prop ==
+    terminated ~> terminationDetected
+
+THEOREM Spec => Prop
+
 =============================================================================
