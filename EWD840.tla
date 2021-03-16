@@ -36,6 +36,9 @@ PassToken(i) ==
         \* Instead, the initiator may start a new round (upon receipt of
         \* the token) in the meantime.
         \/ tcolor = FALSE
+        \* Likewise, don't wait for this node to terminate, if it is
+        \* going to cause an inconclusive round.
+        \/ color[i] = FALSE
     /\ tpos = i
     /\ tpos' = i-1
     \* Passing along the token transfers the taint
