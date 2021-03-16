@@ -5,31 +5,39 @@ CONSTANT N
 
 Node == 0 .. N-1
 
-VARIABLES active, tpos, tcolor
-vars == <<active, tpos, tcolor>>
+VARIABLES active, color, tpos, tcolor
+vars == <<active, color, tpos, tcolor>>
 
 TypeOK ==
   /\ active \in [Node -> BOOLEAN]
+  /\ color \in [Node -> BOOLEAN]
   /\ tpos \in Node
   /\ tcolor \in BOOLEAN
 
 Init ==
   /\ active \in [Node -> BOOLEAN]
+  /\ color \in [Node -> BOOLEAN]
   /\ tpos \in Node
   /\ tcolor = FALSE
 
 InitiateProbe ==
   /\ tpos = 0
-  /\ tcolor = FALSE
+  /\ \/ tcolor = FALSE
+     \/ color[0] = FALSE
   /\ tpos' = N-1
   /\ tcolor' = TRUE
+  /\ color' = [color EXCEPT ![0] = TRUE]
   /\ UNCHANGED <<active>>
 
 PassToken(i) ==
     /\ ~active[i]
     /\ tpos = i
     /\ tpos' = i-1
-    /\ UNCHANGED <<active, tcolor>>
+    \* Passing along the token transfers the taint
+    \* from the node to the token.
+    /\ tcolor' = IF color[i] = FALSE THEN FALSE ELSE tcolor
+    /\ color' = [color EXCEPT ![i] = TRUE]
+    /\ UNCHANGED <<active>>
 
 System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
 
@@ -38,12 +46,13 @@ System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
 Deactivate(i) ==
     /\ active[i]
     /\ active' = [active EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<tpos, tcolor>>
+    /\ UNCHANGED <<color, tpos, tcolor>>
 
 SendMsg(i) ==
     /\ active[i]
     /\ \E j \in Node:
-            active' = [active EXCEPT ![j] = TRUE]
+            /\ active' = [active EXCEPT ![j] = TRUE]
+            /\ color' = [color EXCEPT ![i] = FALSE]
     /\ UNCHANGED <<tpos, tcolor>>
 
 Environment ==
@@ -59,6 +68,7 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(System)
 
 terminationDetected ==
     /\ ~active[0]
+    /\ color[0] = TRUE
     /\ tpos = 0
     /\ tcolor = TRUE
 
