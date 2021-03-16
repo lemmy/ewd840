@@ -30,7 +30,12 @@ InitiateProbe ==
   /\ UNCHANGED <<active>>
 
 PassToken(i) ==
-    /\ ~active[i]
+    /\  \/ ~active[i]
+        \* There is no need to wait for this node to terminate if a
+        \* higher-numbered node has already marked this round inconclusive.
+        \* Instead, the initiator may start a new round (upon receipt of
+        \* the token) in the meantime.
+        \/ tcolor = FALSE
     /\ tpos = i
     /\ tpos' = i-1
     \* Passing along the token transfers the taint
