@@ -12,4 +12,4 @@ jobs:
     - name: Get (nightly) TLC
       run: wget https://nightly.tlapl.us/dist/tla2tools.jar
     - name: Run TLC
-      run: java -Dtlc2.TLC.stopAfter=1800 -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=1efd5c60f238424fa70d100daabbccdd -cp tla2tools.jar tlc2.TLC -workers auto -lncheck final EWD840
+      run: java -Dtlc2.TLC.stopAfter=1800 -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=1efd5c60f238424fa70d100daabbccdd -cp tla2tools.jar tlc2.TLC -workers auto -lncheck final -deadlock EWD840
