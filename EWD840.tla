@@ -33,9 +33,21 @@ PassToken(i) ==
 
 System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
 
-Next == System
+-----------------------------------------------------------------------------
+
+Deactivate(i) ==
+    /\ active[i]
+    /\ active' = [active EXCEPT ![i] = FALSE]
+    /\ UNCHANGED <<tpos, tcolor>>
+
+Environment ==
+    \E i \in Node:
+        \/ Deactivate(i)
+
+Next == System \/ Environment
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(System)
+                              /\ WF_vars(Environment)
 
 -----------------------------------------------------------------------------
 
