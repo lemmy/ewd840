@@ -40,9 +40,16 @@ Deactivate(i) ==
     /\ active' = [active EXCEPT ![i] = FALSE]
     /\ UNCHANGED <<tpos, tcolor>>
 
+SendMsg(i) ==
+    /\ active[i]
+    /\ \E j \in Node:
+            active' = [active EXCEPT ![j] = TRUE]
+    /\ UNCHANGED <<tpos, tcolor>>
+
 Environment ==
     \E i \in Node:
         \/ Deactivate(i)
+        \/ SendMsg(i)
 
 Next == System \/ Environment
 
