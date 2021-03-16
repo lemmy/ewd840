@@ -5,28 +5,32 @@ CONSTANT N
 
 Node == 0 .. N-1
 
+black == "black"
+white == "white"
+Color == {black, white}
+
 VARIABLES active, color, tpos, tcolor
 vars == <<active, color, tpos, tcolor>>
 
 TypeOK ==
   /\ active \in [Node -> BOOLEAN]
-  /\ color \in [Node -> BOOLEAN]
+  /\ color \in [Node -> Color]
   /\ tpos \in Node
-  /\ tcolor \in BOOLEAN
+  /\ tcolor \in Color
 
 Init ==
   /\ active \in [Node -> BOOLEAN]
-  /\ color \in [Node -> BOOLEAN]
+  /\ color \in [Node -> Color]
   /\ tpos \in Node
-  /\ tcolor = FALSE
+  /\ tcolor = black
 
 InitiateProbe ==
   /\ tpos = 0
-  /\ \/ tcolor = FALSE
-     \/ color[0] = FALSE
+  /\ \/ tcolor = black
+     \/ color[0] = black
   /\ tpos' = N-1
-  /\ tcolor' = TRUE
-  /\ color' = [color EXCEPT ![0] = TRUE]
+  /\ tcolor' = white
+  /\ color' = [color EXCEPT ![0] = white]
   /\ UNCHANGED <<active>>
 
 PassToken(i) ==
@@ -35,16 +39,16 @@ PassToken(i) ==
         \* higher-numbered node has already marked this round inconclusive.
         \* Instead, the initiator may start a new round (upon receipt of
         \* the token) in the meantime.
-        \/ tcolor = FALSE
+        \/ tcolor = black
         \* Likewise, don't wait for this node to terminate, if it is
         \* going to cause an inconclusive round.
-        \/ color[i] = FALSE
+        \/ color[i] = black
     /\ tpos = i
     /\ tpos' = i-1
     \* Passing along the token transfers the taint
     \* from the node to the token.
-    /\ tcolor' = IF color[i] = FALSE THEN FALSE ELSE tcolor
-    /\ color' = [color EXCEPT ![i] = TRUE]
+    /\ tcolor' = IF color[i] = black THEN black ELSE tcolor
+    /\ color' = [color EXCEPT ![i] = white]
     /\ UNCHANGED <<active>>
 
 System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
@@ -67,7 +71,7 @@ SendMsg(i) ==
             \* Thus, this is an optimization to avoid another round in the
             \* case that the recipient node deactivates between receiving
             \* the message and the token.
-            /\ color' = [color EXCEPT ![i] = IF j>i THEN FALSE ELSE @]
+            /\ color' = [color EXCEPT ![i] = IF j>i THEN black ELSE @]
     /\ UNCHANGED <<tpos, tcolor>>
 
 Environment ==
@@ -83,9 +87,9 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(System)
 
 terminationDetected ==
     /\ ~active[0]
-    /\ color[0] = TRUE
+    /\ color[0] = white
     /\ tpos = 0
-    /\ tcolor = TRUE
+    /\ tcolor = white
 
 terminated ==
     \A n \in Node: ~active[n]
