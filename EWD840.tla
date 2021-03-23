@@ -1,6 +1,10 @@
 ------------------------------- MODULE EWD840 -------------------------------
 EXTENDS Naturals
 
+Features == {"PT1","PT2","PT3","SM1"} \ {} \* Second set are disabled features.
+
+-----------------------------------------------------------------------------
+
 CONSTANT N
 ASSUME NAssumption == N \in (Nat \ {0})
 
@@ -10,20 +14,22 @@ black == "black"
 white == "white"
 Color == {black, white}
 
-VARIABLES active, color, tpos, tcolor
-vars == <<active, color, tpos, tcolor>>
+VARIABLES active, color, tpos, tcolor, feature
+vars == <<active, color, tpos, tcolor, feature>>
 
 TypeOK ==
   /\ active \in [Node -> BOOLEAN]
   /\ color \in [Node -> Color]
   /\ tpos \in Node
-  /\ tcolor \in Color
+  /\ tcolor \in Color \* Only conjunct that differs from Init.
+  /\ feature \in SUBSET Features
 
 Init ==
   /\ active \in [Node -> BOOLEAN]
   /\ color \in [Node -> Color]
   /\ tpos \in Node
   /\ tcolor = black
+  /\ feature \in SUBSET Features
 
 InitiateProbe ==
   /\ tpos = 0
@@ -32,25 +38,34 @@ InitiateProbe ==
   /\ tpos' = N-1
   /\ tcolor' = white
   /\ color' = [color EXCEPT ![0] = white]
-  /\ UNCHANGED <<active>>
+  /\ UNCHANGED <<active, feature>>
 
 PassToken(i) ==
     /\  \/ ~active[i]
-        \* There is no need to wait for this node to terminate if a
-        \* higher-numbered node has already marked this round inconclusive.
-        \* Instead, the initiator may start a new round (upon receipt of
-        \* the token) in the meantime.
-        \/ tcolor = black
-        \* Likewise, don't wait for this node to terminate, if it is
-        \* going to cause an inconclusive round.
-        \/ color[i] = black
+        \* \* There is no need to wait for this node to terminate if a
+        \* \* higher-numbered node has already marked this round inconclusive.
+        \* \* Instead, the initiator may start a new round (upon receipt of
+        \* \* the token) in the meantime.
+        \/ PT1:: IF "PT1" \in feature THEN
+                   tcolor = black
+                 ELSE
+                   FALSE
+        \* \* Likewise, don't wait for this node to terminate, if it is
+        \* \* going to cause an inconclusive round.
+        \/ PT2:: IF "PT2" \in feature THEN
+                   color[i] = black
+                 ELSE
+                   FALSE
     /\ tpos = i
-    /\ tpos' = i-1
+    /\ PT3:: IF "PT3" \in feature THEN
+               tpos' = IF tcolor = black THEN 0 ELSE i-1
+             ELSE
+               tpos' = i - 1
     \* Passing along the token transfers the taint
     \* from the node to the token.
     /\ tcolor' = IF color[i] = black THEN black ELSE tcolor
     /\ color' = [color EXCEPT ![i] = white]
-    /\ UNCHANGED <<active>>
+    /\ UNCHANGED <<active, feature>>
 
 System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
 
@@ -59,7 +74,7 @@ System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
 Deactivate(i) ==
     /\ active[i]
     /\ active' = [active EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<color, tpos, tcolor>>
+    /\ UNCHANGED <<color, tpos, tcolor, feature>>
 
 SendMsg(i) ==
     /\ active[i]
@@ -72,8 +87,11 @@ SendMsg(i) ==
             \* Thus, this is an optimization to avoid another round in the
             \* case that the recipient node deactivates between receiving
             \* the message and the token.
-            /\ color' = [color EXCEPT ![i] = IF j>i THEN black ELSE @]
-    /\ UNCHANGED <<tpos, tcolor>>
+            /\ SM1(j):: IF "SM1" \in feature THEN
+                       color' = [color EXCEPT ![i] = IF j>i THEN black ELSE @]
+                     ELSE 
+                       color' = [color EXCEPT ![i] = black]
+    /\ UNCHANGED <<tpos, tcolor, feature>>
 
 Environment ==
     \E i \in Node:
@@ -123,10 +141,20 @@ THEOREM Spec => Prop
 -----------------------------------------------------------------------------
 
 SpecWFEnv ==
+    \* It does not matter if we define weak-fairness on Environment or on
+    \* Deactivate specifically.  AlwaysTerminates stipulates that for 
+    \* behaviors where the exists a suffix with no SendMsg actions occurring,
+    \* termination is eventually detected.  A suffix with no SendMsg actions
+    \* satisfies WF_vars(Environment) iff Deactivate actions occur.
+    \* In other words, the antecedence of AlwaysTerminates is false for
+    \* behaviors with suffixes that have SendMsg actions.
+    \* We cannot define fairness of the next-state relation to rule out
+    \* behaviors with SendMsg actions unless we change the behavior part of
+    \* the spec.
     Spec /\ WF_vars(Environment)
 
 AlwaysTerminates ==    
-    <>[](terminationDetected)
+    <>[][\A n \in Node: ~SendMsg(n)]_vars => <>[]terminationDetected
 
 THEOREM SpecWFEnv => AlwaysTerminates
 
