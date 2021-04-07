@@ -1,7 +1,10 @@
 ------------------------------- MODULE EWD840 -------------------------------
 EXTENDS Naturals
 
-CONSTANT N
+CONSTANT
+    \* @type: Int;
+    N
+
 ASSUME NAssumption == N \in (Nat \ {0})
 
 Node == 0 .. N-1
@@ -10,7 +13,15 @@ black == "black"
 white == "white"
 Color == {black, white}
 
-VARIABLES active, color, tpos, tcolor
+VARIABLES 
+    \* @type: Int -> Bool;
+    active,
+    \* @type: Int -> Str;
+    color, 
+    \* @type: Int;
+    tpos, 
+    \* @type: Str;
+    tcolor
 vars == <<active, color, tpos, tcolor>>
 
 TypeOK ==
@@ -107,7 +118,8 @@ THEOREM Spec => []Inv
 \* Dijkstra's (inductive) invariant.
 IInv ==
     \/ P0:: \A i \in Node : tpos < i => ~ active[i]
-    \/ P1:: \E j \in 0 .. tpos : color[j] = black
+    \* https://github.com/informalsystems/apalache/issues/446
+    \/ P1:: \E j \in {i \in 0..N-1: i <= tpos} : color[j] = black
     \/ P2:: tcolor = black
 
 THEOREM Spec => []IInv
