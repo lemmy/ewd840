@@ -1,10 +1,12 @@
 ------------------------------- MODULE EWD840_sim -------------------------------
 EXTENDS Naturals, TLC, TLCExt, IOUtils, CSV, Sequences, EWD840
 
-\* The data collection below only works with TLC running in simulation mode.
-\* Fail fast if TLC runs in the wrong mode.
-\* TODO: Add "Generator" to TLC.
-ASSUME TLCGet("mode") = "Simulation"
+\* The data collection below only works with TLC running in generation mode.
+\* Unless TLC runs with -Dtlc2.tool.impl.Tool.probabilistic=true (or -generate).
+\* the simulator generates all successor states and chooses one randomly. 
+\* In "generate" mode, TLC randomly generates a (single) successor state.
+\* Fail fast if TLC runs in modes that would cause bogus results.
+ASSUME TLCGet("config").mode = "generate"
 
 \* A function from action names to a Nat that is the TLCGet/TLCSet register for
 \* the action (TLCGet/TLCSet only supports naturals for (user-defined) registers).
@@ -50,14 +52,6 @@ ASSUME
 
 1AtEndOfEachStep ==
     \* Counts the occurrences of actions in TLCGet/TLCSet registers.
-    \* Pitfall:
-    \* - Action counting in a constraint gives correct results iff TLC
-    \*   rusn with -Dtlc2.tool.impl.Tool.probabilistic=true (or -generate).
-    \*   Otherwise, the simulator evaluates A for every successor state,
-    \*   not just the the one that the simulator will eventually choose
-    \*   as the stateto explore further.
-    \*   => Assert(TLCGet("mode")="Generation") conjunct or 
-    \*      ASSUME(TLCGet("mode")...)
     \* TODO: Add TLCGet("action").id to avoid A21 function that might get
     \*       outdated when the (behavior) spec changes. However, .id should
     \*       abstract from the fact that TLC -internally- has many instances
@@ -67,8 +61,7 @@ ASSUME
     \*       would not only spare us A2I here, but also below in 3AtEndOfBehavior
     \*       when writing the statistics.
     LET a == TLCGet("action").name
-    IN \*/\ PrintT(<<a, TLCGet("level"), TLCGet(1), TLCGet(2), TLCGet(3), TLCGet(4)>>)
-       /\ Assert(a \in DOMAIN A2I, <<"Unknown action", a>>)
+    IN /\ Assert(a \in DOMAIN A2I, <<"Unknown action:", a>>)
        /\ TLCSet(A2I[a], TLCGet(A2I[a]) + 1)
 
 \* "Termination" does not mean termination of TLC but the state when the nodes,
@@ -89,19 +82,51 @@ ASSUME
     \* However, that would require some sort mechanism (think prophecy variable)
     \* to force the simulatior/generator to pick a successor state t s.t. 
     \* `terminated` t.
+    \* Assuming the simulator would choose a state that satisfies terminated', 
+    \* we would have skewed the simulator to favor exactly those behaviors. 
+    \* In other words, we designed a scheduler with a one-step/state look-ahead.
+    \* (a special form of fairness).
+    \* For this particular use case, the fix for https://github.com/tlaplus/tlaplus/issues/602
+    \* wouldn't even help; implication is true even if the antecedent is FALSE.
+    \*
+    \* For this use case, we would want the dual (?) of the primed operator--
+    \* an operator that gives you the value of terminated in the predecesssor
+    \* state.
+    \*
+    \* Given the complexities aroud all of this, it seems easiest to just go
+    \* with a state-constraint.
+
+    \* Generating code from TLA+ would be restricted to the fragment
+    \* where one cannot look into the future.
     =>
     \* Record the length of the prefix of the behavior the moment termination
     \* occurres.
     /\ TLCSet(5, TLCGet("level"))
 
-3AtEndOfBehavior ==
-    \* Just a good old state constraint. Could have been an invariant too.
-    \* The disadvantage of a constraint is that the antecedent is evaluated
-    \* for *every* state generated instead of just the last state generated
-    \* by the simulator when we want the consequent to be evalauted.
+3AtTerminationDetected ==
+    \* Just a good old state constraint (could have been an invariant too).
+    \* The disadvantage of an ordinary constraint (or inv) is that the antecedent is evaluated
+    \* for *every* generated state, instead of just after the last state when we actually want the consequent to be evalauted.
     \* A constraint's advantage is that it works with old versions of TLC.
-    \/ /\ terminationDetected
-       /\ terminated
+    /\ terminationDetected
+    /\ terminated
+    => 
+    /\ LET l == TLCGet("level")
+           ip == TLCGet(A2I["InitiateProbe"])  \* Number of InitiateProbe steps.
+           sm == TLCGet(A2I["SendMsg"])  \* Number of SendMsg steps.
+           pt == TLCGet(A2I["PassToken"])  \* Number of PassToken steps.
+           da == TLCGet(A2I["Deactivate"])  \* Number of Deactivate steps.
+       IN \* Validate data record (+ 1 to account for initial state).
+          /\ Assert(l = 1 + ip + sm + pt + da, 
+                <<"mismatch (l=sumAllActions)", l, 1 + ip + sm + pt + da>>)
+          \* Append record to CSV file on disk.
+          /\ CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s",
+                <<feature, l, ip, sm, pt, da, N, TLCGet(5)>>,
+                ToFile)
+    \* Re-initialize stats *after* TLCGet register have been read above!
+    /\ InitializeStatistics     
+
+4AtEndOfBehavior ==
     \* It's possible that the nodes have not terminated after 100 states,
     \* which is the max trace length of the simulator.  Even though this 
     \* outcome isn't really what we are after with our simulation, we have
@@ -109,7 +134,7 @@ ASSUME
     \* statistics.
     \* https://github.com/tlaplus/tlaplus/commit/3d4d0f33b3298417f594b559cbf87a4f389697e3
     \* causes the regression that this has to be 101, even though -depth is 100.
-    \/ TLCGet("level") >= 101
+    \/ TLCGet("config").depth = TLCGet("level")
     \* Pitfall:
     \* - The D in `TLCGet("level") >= D` depends on what the user sets the simulator's
     \*   -depth command-line parameter to.  Hard-coding it here is, thus, brittle.  As
@@ -123,23 +148,11 @@ ASSUME
     \*   Secondly, `ENABLED Next` obviously evaluates the next-state relation, which
     \*   might update the very statistics we wish to collect.  In other words, the
     \*   antecedent here has to be side-effect free/idempotent WRT the statistics.
+    \*   A spec with a sub-action `UNCHANGED vars` doesn't deadlock, for which
+    \*   `ENABLED Next` will be an invariant.
     => 
-    /\ LET l == TLCGet("level")
-           ip == TLCGet(A2I["InitiateProbe"])  \* Number of InitiateProbe steps.
-           sm == TLCGet(A2I["SendMsg"])  \* Number of SendMsg steps.
-           pt == TLCGet(A2I["PassToken"])  \* Number of PassToken steps.
-           da == TLCGet(A2I["Deactivate"])  \* Number of Deactivate steps.
-       IN \* Validate data record (+ 1 to account for initial state).
-          \* If there is a mismatch, TLC might be running without
-          \* -Dtlc2.tool.impl.Tool.probabilistic=true
-          /\ Assert(l = 1 + ip + sm + pt + da, 
-                <<"mismatch (l=sumAllActions)", l, 1 + ip + sm + pt + da>>)
-          \* Append record to CSV file on disk.
-          /\ CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s",
-                <<feature, l, ip, sm, pt, da, N, TLCGet(5)>>,
-                ToFile)
     \* Re-initialize stats *after* TLCGet register have been read above!
-    /\ InitializeStatistics     
+    /\ InitializeStatistics
 
 (***************************************************************************)
 (* Behavior spec to reduce state-space to what is relevant for simualtion. *)
